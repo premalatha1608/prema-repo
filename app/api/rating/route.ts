@@ -19,11 +19,18 @@ export async function GET(request: NextRequest) {
     
     const frappeUrl = `https://zeff.valuepitch.ai/api/resource/${encodeURIComponent(DOCTYPE)}?fields=${encodeURIComponent(fields)}&filters=${encodeURIComponent(filters)}&limit=0`
     
+    // Get all cookies from the request and prefer our persisted Frappe SID
+    const cookiesHeader = request.headers.get('cookie') || ''
+    const frappeSid = request.cookies.get('frappe_sid')?.value
+    const forwardCookie = frappeSid ? `sid=${frappeSid}` : cookiesHeader
+    
     const response = await fetch(frappeUrl, {
       headers: {
-        'Cookie': request.headers.get('cookie') || '',
-        'Content-Type': 'application/json'
-      }
+        'Cookie': forwardCookie,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      cache: 'no-store' // Ensure fresh data
     })
 
     if (!response.ok) {

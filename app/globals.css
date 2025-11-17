@@ -499,10 +499,23 @@ body {
   align-items: center;
 }
 
+.zeff-nav-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-left: -6px;
+}
+
 .zeff-nav-title {
   font-size: 24px;
   font-weight: 700;
-  color: var(--zeff-text);
+  color: #3b82f6;
+  margin: 0;
+}
+
+.zeff-nav-subtitle {
+  font-size: 14px;
+  color: var(--zeff-muted);
   margin: 0;
 }
 
@@ -567,6 +580,10 @@ body {
   
   .zeff-nav-title {
     font-size: 20px;
+  }
+  
+  .zeff-nav-subtitle {
+    font-size: 13px;
   }
   
   .zeff-welcome-title {

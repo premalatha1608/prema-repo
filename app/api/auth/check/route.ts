@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
   try {
+    // Short-circuit for local/dev mocks
+    if (process.env.MOCK_API === '1') {
+      return NextResponse.json({ message: 'manvitha@valuepitch.com' })
+    }
+
     // Prefer our same-origin persisted Frappe SID and forward it as `sid`
     const incomingCookies = request.headers.get('cookie') || ''
     const frappeSid = request.cookies.get('frappe_sid')?.value
@@ -14,10 +19,19 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    const data = await response.json()
+    // If Frappe doesn't respond OK, treat as Guest instead of failing with 500
+    if (!response.ok) {
+      return NextResponse.json({ message: 'Guest' })
+    }
+
+    const data = await response.json().catch(() => ({} as any))
+    // Normalize to { message: <user or Guest> }
+    const normalized = typeof data?.message === 'string' && data.message.trim()
+      ? { message: data.message }
+      : { message: 'Guest' }
     
     // Forward the response with cookies
-    const nextResponse = NextResponse.json(data)
+    const nextResponse = NextResponse.json(normalized)
     
     // Copy cookies from Frappe response to Next.js response
     const setCookieHeader = response.headers.get('set-cookie')
@@ -37,7 +51,8 @@ export async function GET(request: NextRequest) {
     
     return nextResponse
   } catch (error) {
-    return NextResponse.json({ error: 'Authentication check failed' }, { status: 500 })
+    // On network or other errors, don't 500 - return Guest
+    return NextResponse.json({ message: 'Guest' })
   }
 }
 

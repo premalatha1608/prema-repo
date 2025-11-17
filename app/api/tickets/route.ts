@@ -23,13 +23,21 @@ export async function GET(request: NextRequest) {
     
     switch (type) {
       case 'raised':
+        // Include all tickets raised by the user, regardless of who they're assigned to
+        // This ensures tickets assigned to other users still appear in "Raised by me"
         filters = [["raised_by", "=", user]]
         break
       case 'assigned':
+        // Tickets assigned to user but not raised by them
         filters = [["assigned_to_user", "=", user], ["raised_by", "!=", user]]
         break
       case 'self':
+        // Tickets raised by user AND assigned to themselves
         filters = [["raised_by", "=", user], ["assigned_to_user", "=", user]]
+        break
+      case 'reporting_manager':
+        // Tickets where the current user is the reporting manager (by email)
+        filters = [["reporting_manager_user", "=", user]]
         break
       default:
         return NextResponse.json({ error: 'Invalid type parameter' }, { status: 400 })
@@ -108,7 +116,7 @@ export async function GET(request: NextRequest) {
     try {
       const urlParams = new URL(request.url).searchParams
       const urlType = urlParams.get('type')
-      if (urlType && (urlType === 'raised' || urlType === 'assigned' || urlType === 'self')) {
+      if (urlType && (urlType === 'raised' || urlType === 'assigned' || urlType === 'self' || urlType === 'reporting_manager')) {
         fallbackType = urlType
       }
     } catch (urlError) {
@@ -133,7 +141,8 @@ export async function GET(request: NextRequest) {
     const lists: Record<string, any[]> = {
       raised: [mockTicket],
       assigned: [mockTicket],
-      self: [mockTicket]
+      self: [mockTicket],
+      reporting_manager: [mockTicket]
     }
     return NextResponse.json({ tickets: lists[fallbackType] || [] })
   }

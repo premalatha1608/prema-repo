@@ -40,17 +40,19 @@ export default function DashboardPage() {
     assigned: Ticket[]
     selfAssigned: Ticket[]
     archived: Ticket[]
+    reportingManager: Ticket[]
   }>({
     raised: [],
     assigned: [],
     selfAssigned: [],
-    archived: []
+    archived: [],
+    reportingManager: []
   })
 
 
   const [teams, setTeams] = useState<Team[]>([])
   const [avgRating, setAvgRating] = useState<number>(0)
-  const [activeTab, setActiveTab] = useState<'raised' | 'assigned' | 'self' | 'archived'>('raised')
+  const [activeTab, setActiveTab] = useState<'raised' | 'assigned' | 'self' | 'reporting_manager' | 'archived'>('raised')
   const [showImpactModal, setShowImpactModal] = useState(false)
   const [showEditLevelModal, setShowEditLevelModal] = useState(false)
   const [editLevelContext, setEditLevelContext] = useState<{
@@ -173,29 +175,77 @@ export default function DashboardPage() {
   const loadTickets = async (currentUser: string) => {
   try {
     console.log('[Dashboard] Loading tickets for user:', currentUser)
-    const [raisedRes, assignedRes, selfRes] = await Promise.all([
+    const [raisedRes, assignedRes, selfRes, reportingRes] = await Promise.all([
       fetch(`/api/tickets?type=raised&user=${encodeURIComponent(currentUser)}`, { credentials: 'include' }),
       fetch(`/api/tickets?type=assigned&user=${encodeURIComponent(currentUser)}`, { credentials: 'include' }),
-      fetch(`/api/tickets?type=self&user=${encodeURIComponent(currentUser)}`, { credentials: 'include' })
+      fetch(`/api/tickets?type=self&user=${encodeURIComponent(currentUser)}`, { credentials: 'include' }),
+      fetch(`/api/tickets?type=reporting_manager&user=${encodeURIComponent(currentUser)}`, { credentials: 'include' })
     ])
 
-    const [raised, assigned, self] = await Promise.all([
+    const [raised, assigned, self, reporting] = await Promise.all([
       raisedRes.ok ? raisedRes.json() : { tickets: [] },
       assignedRes.ok ? assignedRes.json() : { tickets: [] },
-      selfRes.ok ? selfRes.json() : { tickets: [] }
+      selfRes.ok ? selfRes.json() : { tickets: [] },
+      reportingRes.ok ? reportingRes.json() : { tickets: [] }
     ])
 
+    // Ensure we have arrays - handle both { tickets: [...] } and direct array responses
+    // Also handle case where response might be { data: { tickets: [...] } } or other nested structures
+    let raisedTickets: Ticket[] = []
+    if (Array.isArray(raised.tickets)) {
+      raisedTickets = raised.tickets
+    } else if (Array.isArray(raised)) {
+      raisedTickets = raised
+    } else if (raised?.data && Array.isArray(raised.data)) {
+      raisedTickets = raised.data
+    } else if (raised?.data?.tickets && Array.isArray(raised.data.tickets)) {
+      raisedTickets = raised.data.tickets
+    }
+    
+    let assignedTickets: Ticket[] = []
+    if (Array.isArray(assigned.tickets)) {
+      assignedTickets = assigned.tickets
+    } else if (Array.isArray(assigned)) {
+      assignedTickets = assigned
+    } else if (assigned?.data && Array.isArray(assigned.data)) {
+      assignedTickets = assigned.data
+    } else if (assigned?.data?.tickets && Array.isArray(assigned.data.tickets)) {
+      assignedTickets = assigned.data.tickets
+    }
+    
+    let selfTickets: Ticket[] = []
+    if (Array.isArray(self.tickets)) {
+      selfTickets = self.tickets
+    } else if (Array.isArray(self)) {
+      selfTickets = self
+    } else if (self?.data && Array.isArray(self.data)) {
+      selfTickets = self.data
+    } else if (self?.data?.tickets && Array.isArray(self.data.tickets)) {
+      selfTickets = self.data.tickets
+    }
+    
+    let reportingTickets: Ticket[] = []
+    if (Array.isArray(reporting.tickets)) {
+      reportingTickets = reporting.tickets
+    } else if (Array.isArray(reporting)) {
+      reportingTickets = reporting
+    } else if (reporting?.data && Array.isArray(reporting.data)) {
+      reportingTickets = reporting.data
+    } else if (reporting?.data?.tickets && Array.isArray(reporting.data.tickets)) {
+      reportingTickets = reporting.data.tickets
+    }
+    
     console.log('[Dashboard] Tickets loaded:', {
-      raised: (raised.tickets || []).length,
-      assigned: (assigned.tickets || []).length,
-      self: (self.tickets || []).length
+      raised: raisedTickets.length,
+      assigned: assignedTickets.length,
+      self: selfTickets.length
     })
 
     // Separate accepted tickets
     const allTickets = [
-      ...(raised.tickets || []),
-      ...(assigned.tickets || []),
-      ...(self.tickets || [])
+      ...raisedTickets,
+      ...assignedTickets,
+      ...selfTickets
     ]
     const archivedShallow = allTickets.filter(t => t.status === "Accepted")
 
@@ -254,23 +304,34 @@ export default function DashboardPage() {
       })
     }
 
-    const nextRaised = sortByCreationDate((raised.tickets || []).filter((t: Ticket) => t.status !== "Accepted"))
-    const nextAssigned = sortByCreationDate((assigned.tickets || []).filter((t: Ticket) => t.status !== "Accepted"))
-    const nextSelf = sortByCreationDate((self.tickets || []).filter((t: Ticket) => t.status !== "Accepted"))
+    // Filter out accepted tickets - all other tickets from the "raised" API should be included
+    // The API already filters by raised_by, so we just need to exclude "Accepted" status tickets
+    // This ensures tickets assigned to other users still appear in "Raised by me" tab
+    const nextRaised = sortByCreationDate(
+      raisedTickets.filter((t: Ticket) => t.status !== "Accepted")
+    )
+    const nextAssigned = sortByCreationDate(assignedTickets.filter((t: Ticket) => t.status !== "Accepted"))
+    const nextSelf = sortByCreationDate(selfTickets.filter((t: Ticket) => t.status !== "Accepted"))
     const nextArchived = sortByAcceptanceDate(archived)
+    // Show only tickets where user is reporting manager
+    const nextReporting = sortByCreationDate(
+      reportingTickets.filter((t: Ticket) => t.status !== "Accepted")
+    )
 
     // Always update with real data from API
     console.log('[Dashboard] Setting tickets:', {
       raised: nextRaised.length,
       assigned: nextAssigned.length,
       selfAssigned: nextSelf.length,
-      archived: nextArchived.length
+      archived: nextArchived.length,
+      reportingManager: nextReporting.length
     })
     setTickets({
       raised: nextRaised,
       assigned: nextAssigned,
       selfAssigned: nextSelf,
-      archived: nextArchived
+      archived: nextArchived,
+      reportingManager: nextReporting
     })
   } catch (error) {
     console.error('Error loading tickets:', error)
@@ -279,7 +340,8 @@ export default function DashboardPage() {
       raised: [],
       assigned: [],
       selfAssigned: [],
-      archived: []
+      archived: [],
+      reportingManager: []
     })
   }
 }
@@ -376,6 +438,9 @@ export default function DashboardPage() {
 
     try {
       const selectedAssigneeId = formData.whoCanSolve === "__MYSELF__" ? user : formData.whoCanSolve
+      // Get display name for who_can_solve_this field (Frappe expects display name, not email)
+      const selectedMember = teamMembers.find(m => m.id === formData.whoCanSolve)
+      const whoCanSolveDisplayName = formData.whoCanSolve === "__MYSELF__" ? '' : (selectedMember?.name || '')
 
       // Use FormData if there's a file, otherwise use JSON
       let requestBody: FormData | string
@@ -385,7 +450,8 @@ export default function DashboardPage() {
         // Use FormData for file upload
         const formDataToSend = new FormData()
         formDataToSend.append('what_is_issueidea', formData.whatIssue)
-        formDataToSend.append('who_can_solve_this', formData.whoCanSolve === "__MYSELF__" ? '' : (selectedAssigneeId || ''))
+        // who_can_solve_this should be display name, not email - use assigned_to_user for assignment
+        formDataToSend.append('who_can_solve_this', whoCanSolveDisplayName)
         formDataToSend.append('when_do_i_need_this_by', formData.needByDate)
         formDataToSend.append('business_impact', formData.businessImpact)
         formDataToSend.append('severity_business_impact', formData.severityImpact)
@@ -403,7 +469,8 @@ export default function DashboardPage() {
         }
         requestBody = JSON.stringify({
           what_is_issueidea: formData.whatIssue,
-          who_can_solve_this: formData.whoCanSolve === "__MYSELF__" ? null : selectedAssigneeId,
+          // who_can_solve_this should be display name, not email - use assigned_to_user for assignment
+          who_can_solve_this: whoCanSolveDisplayName || null,
           when_do_i_need_this_by: formData.needByDate,
           business_impact: formData.businessImpact,
           severity_business_impact: formData.severityImpact,
@@ -608,7 +675,10 @@ export default function DashboardPage() {
       {/* Navigation Bar */}
       <nav className="zeff-navbar">
         <div className="zeff-nav-content">
-          <h1 className="zeff-nav-title">Zeff</h1>
+          <div className="zeff-nav-title-group">
+            <h1 className="zeff-nav-title">Zeff</h1>
+            <p className="zeff-nav-subtitle">Issues/Ideas/Tasks!</p>
+          </div>
           <button
             onClick={handleLogout}
             className="zeff-signout-btn"
@@ -623,31 +693,9 @@ export default function DashboardPage() {
 
       {/* Dashboard Content */}
       <div className="container">
-        <div className="header">
-          <h1>Zeff</h1>
-          <p className="sub">Issues/Ideas/Tasks!</p>
-        </div>
-
-        <div className="stats">
-          <div className="stat">
-            <div className="stat-label">Raised by you</div>
-            <div className="stat-value">{tickets.raised.length}</div>
-          </div>
-          <div className="stat">
-            <div className="stat-label">Assigned to you</div>
-            <div className="stat-value">{tickets.assigned.length}</div>
-          </div>
-          <div className="stat rating">
-            <div className="stat-label">Avg Level (Last 7 Days)</div>
-            <div className="stat-value">
-              <span>{displayRating(avgRating)}</span>
-            </div>
-          </div>
-        </div>
-
         {/* New Request Form */}
         <div className="new-request-form">
-          <div className="form-title">Create New Request</div>
+          <div className="form-title">Create</div>
           <div className="form-grid">
             <div className="form-group">
               <label className="form-label">What's the issue/idea?</label>
@@ -807,6 +855,23 @@ export default function DashboardPage() {
           >
             zeff-iit!
           </button>
+        </div>
+
+        <div className="stats">
+          <div className="stat">
+            <div className="stat-label">Raised by you</div>
+            <div className="stat-value">{tickets.raised.length}</div>
+          </div>
+          <div className="stat">
+            <div className="stat-label">Assigned to you</div>
+            <div className="stat-value">{tickets.assigned.length}</div>
+          </div>
+          <div className="stat rating">
+            <div className="stat-label">Avg Level (Last 7 Days)</div>
+            <div className="stat-value">
+              <span>{displayRating(avgRating)}</span>
+            </div>
+          </div>
         </div>
 
         {/* View Link Modal */}
@@ -1046,6 +1111,14 @@ export default function DashboardPage() {
   >
     Archived
   </button>
+          {tickets.reportingManager.length > 0 && (
+            <button 
+              className={`tab ${activeTab === 'reporting_manager' ? 'active' : ''}`}
+              onClick={() => setActiveTab('reporting_manager')}
+            >
+              Reporting Manager
+            </button>
+          )}
 
         </div>
 
@@ -1080,6 +1153,8 @@ export default function DashboardPage() {
               )}
             </div>
           )}
+          
+          
           
           {activeTab === 'assigned' && (
             <div className="table-container cols-8">
@@ -1120,6 +1195,44 @@ export default function DashboardPage() {
             </div>
           )}
 
+          {activeTab === 'reporting_manager' && (
+            <div className="table-container cols-8">
+              <div className="table-header">
+                <div>Issue / Request</div>
+                <div>Deadline Status</div>
+                <div>Severity</div>
+                <div>Business Impact</div>
+                <div>Raised By</div>
+                <div>Assigned To</div>
+                <div>Status</div>
+                <div>Actions</div>
+              </div>
+              {tickets.reportingManager.length === 0 ? (
+                <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>
+                  No tickets where you are reporting manager.
+                </div>
+              ) : (
+                tickets.reportingManager.map(ticket => (
+                  <TicketRow 
+                    key={ticket.name} 
+                    ticket={ticket} 
+                    isRaisedByMe={false}
+                    context="reporting_manager"
+                    onUpdateStatus={updateTicketStatus}
+                    onAcceptTicket={acceptTicket}
+                    onViewLink={(url) => {
+                      setViewLinkUrl(url)
+                      setShowViewLinkModal(true)
+                    }}
+                    onViewAttachment={(url) => {
+                      setViewAttachmentUrl(url)
+                      setShowViewAttachmentModal(true)
+                    }}
+                  />
+                ))
+              )}
+            </div>
+          )}
           {activeTab === 'self' && (
             <div className="table-container cols-7">
               <div className="table-header">
@@ -1243,7 +1356,7 @@ function TicketRow({
   showAcceptedActions?: boolean
   onUpdateStatus: (ticketName: string, status: string, notes: string) => void
   onAcceptTicket: (ticketName: string, level: string, notes: string) => void
-  context?: 'raised' | 'assigned' | 'self' | 'archived'
+  context?: 'raised' | 'assigned' | 'self' | 'archived' | 'reporting_manager'
   onViewLink?: (url: string) => void
   onViewAttachment?: (url: string) => void
 }) {
@@ -1293,6 +1406,12 @@ function TicketRow({
       {context === 'assigned' && (
         <div className="cell-content">{ticket.raised_by || "-"}</div>
       )}
+      {context === 'reporting_manager' && (
+        <>
+          <div className="cell-content">{ticket.raised_by || "-"}</div>
+          <div className="cell-content">{ticket.assigned_to_user || "Unassigned"}</div>
+        </>
+      )}
       <div className="pill" data-status={status} id={`pill-${ticket.name}`}>{status}</div>
       <div className="actions" data-context={context}>
         {showUpdateButton && (
@@ -1302,7 +1421,7 @@ function TicketRow({
           <button className="btn accept" onClick={() => setShowAccept(true)}>Accept</button>
         )}
       </div>
-      {(context === 'assigned' || context === 'self') && (hasLink || hasAttachment) && (
+      {(context === 'assigned' || context === 'self' || context === 'reporting_manager') && (hasLink || hasAttachment) && (
         <div className="attachment-actions" style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'stretch' }}>
             {hasLink && (
             <button 

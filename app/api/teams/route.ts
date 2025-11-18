@@ -3,7 +3,9 @@ import { NextRequest, NextResponse } from 'next/server'
 // GET /api/teams - Fetch team members (users)
 export async function GET(request: NextRequest) {
   try {
-    if (process.env.MOCK_API === '1') {
+    // Only allow MOCK_API in development mode
+    const isDevelopment = process.env.NODE_ENV === 'development'
+    if (process.env.MOCK_API === '1' && isDevelopment) {
       return NextResponse.json({ members: [ 'alice@example.com', 'bob@example.com', 'carol@example.com' ] })
     }
 
@@ -37,11 +39,18 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error fetching teams:', error)
     
-    // Fallback to mock members when connection fails (dev-team branch)
-    return NextResponse.json({ members: [
-      { id: 'alice@example.com', name: 'Alice' },
-      { id: 'bob@example.com', name: 'Bob' },
-      { id: 'carol@example.com', name: 'Carol' }
-    ] })
+    // In production, return empty array instead of mock data
+    // In development, allow fallback to mock data for testing
+    const isDevelopment = process.env.NODE_ENV === 'development'
+    if (isDevelopment && process.env.MOCK_API === '1') {
+      return NextResponse.json({ members: [
+        { id: 'alice@example.com', name: 'Alice' },
+        { id: 'bob@example.com', name: 'Bob' },
+        { id: 'carol@example.com', name: 'Carol' }
+      ] })
+    }
+    
+    // Production: return empty array to avoid showing mock data
+    return NextResponse.json({ members: [] })
   }
 }

@@ -29,7 +29,7 @@ npm install
 npm run dev
 ```
 
-3. Open [http://localhost:3000](http://localhost:3000) in your browser.
+3. Open [http://localhost:3000](http://localhost:3000) or [https://zeff-dev.netlify.app](https://zeff-dev.netlify.app) in your browser.
 
 ## Authentication Flow
 
@@ -51,7 +51,22 @@ Create a `.env.local` file:
 ```env
 FRAPPE_URL=https://zeff.valuepitch.ai
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_ALLOWED_ORIGINS=http://localhost:3000,https://zeff-dev.netlify.app
 ```
+
+### Supported URLs
+
+The application supports both:
+- **Local Development**: `http://localhost:3000`
+- **Netlify Deployment**: `https://zeff-dev.netlify.app`
+
+## CORS Configuration
+
+The application includes middleware (`middleware.ts`) that handles CORS for both:
+- `http://localhost:3000` (local development)
+- `https://zeff-dev.netlify.app` (Netlify deployment)
+
+The middleware automatically handles preflight OPTIONS requests and sets appropriate CORS headers for API routes.
 
 ## Backend Configuration
 
@@ -78,7 +93,9 @@ app/
 │   └── page.tsx
 ├── globals.css
 ├── layout.tsx
-└── page.tsx
+├── page.tsx
+middleware.ts          # CORS handling for multiple origins
+next.config.js         # Next.js configuration
 ```
 
 ## Development

@@ -38,7 +38,9 @@ export async function POST(request: NextRequest) {
     // Copy cookies from Frappe response to Next.js response
     const setCookieHeader = response.headers.get('set-cookie')
     if (setCookieHeader) {
+      // Forward the set-cookie header from Frappe
       nextResponse.headers.set('set-cookie', setCookieHeader)
+      
       // Also persist the Frappe SID into a same-origin cookie so we can forward it on API calls
       const sidMatch = setCookieHeader.match(/sid=([^;]+)/)
       if (sidMatch && sidMatch[1]) {
@@ -46,7 +48,8 @@ export async function POST(request: NextRequest) {
           httpOnly: true,
           sameSite: 'lax',
           secure: process.env.NODE_ENV === 'production',
-          path: '/'
+          path: '/',
+          maxAge: 60 * 60 * 24 * 7 // 7 days
         })
       }
     }
@@ -56,7 +59,8 @@ export async function POST(request: NextRequest) {
         httpOnly: true,
         sameSite: 'lax',
         secure: process.env.NODE_ENV === 'production',
-        path: '/'
+        path: '/',
+        maxAge: 60 * 60 * 24 * 7 // 7 days
       })
     }
     

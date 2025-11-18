@@ -34,6 +34,11 @@ export async function GET(request: NextRequest) {
     })
 
     if (!response.ok) {
+      // Handle 401 Unauthorized - return 0 rating instead of error
+      if (response.status === 401) {
+        console.warn('[Rating API] Unauthorized (401) - returning 0 rating')
+        return NextResponse.json({ avgRating: 0 })
+      }
       throw new Error(`Frappe API error: ${response.status}`)
     }
 

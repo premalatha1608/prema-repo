@@ -29,7 +29,12 @@ export default function LoginPage() {
       if (response.ok) {
         const data = await response.json()
         if (data && data.message && data.message !== "Guest") {
-          router.push('/dashboard')
+          // Use window.location for reliable redirect in production
+          if (typeof window !== 'undefined') {
+            window.location.replace('/dashboard')
+          } else {
+            router.push('/dashboard')
+          }
         }
       }
     } catch (error) {
@@ -69,21 +74,30 @@ export default function LoginPage() {
       throw new Error(text)
     }
 
+    // Check for successful login indicators
     if (data && (data.message === "Logged In" || data.sid || data.full_name)) {
       return true
     }
 
+    // If response is HTML, it might be a successful redirect from Frappe
     if (response.headers.get("content-type") && response.headers.get("content-type")?.includes("text/html")) {
       return true
     }
 
+    // Check for error messages
     if (data && data.message) {
       if (typeof data.message === "string" && data.message.toLowerCase().includes("otp")) {
         throw new Error("Two-factor authentication is enabled. Please complete OTP on the standard /login page.")
       }
-      throw new Error(data.message)
+      // If message indicates failure, throw error
+      const lowerMessage = data.message.toLowerCase()
+      if (lowerMessage.includes("invalid") || lowerMessage.includes("incorrect") || lowerMessage.includes("failed")) {
+        throw new Error(data.message)
+      }
     }
 
+    // If we get here and response was OK, assume success
+    // This handles cases where Frappe returns success without clear indicators
     return true
   }
 
@@ -99,7 +113,13 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      await login(email, password)
+      const loginSuccess = await login(email, password)
+      
+      if (!loginSuccess) {
+        setMessage("Login failed. Please try again.")
+        setLoading(false)
+        return
+      }
       
       // Handle remember me
       if (remember) {
@@ -113,7 +133,22 @@ export default function LoginPage() {
       }
 
       setMessage("Signed in. Redirecting…")
-      router.push('/dashboard')
+      
+      // Wait a moment for cookies to be set and propagated
+      await new Promise(resolve => setTimeout(resolve, 300))
+      
+      // Redirect to dashboard immediately
+      // Using window.location.href ensures a full page reload so cookies are read
+      // This is more reliable than router.push in production
+      console.log('Redirecting to dashboard after successful login')
+      
+      // Force immediate redirect - don't wait for anything else
+      if (typeof window !== 'undefined') {
+        // Use replace instead of assign to avoid back button issues
+        window.location.replace('/dashboard')
+      } else {
+        router.push('/dashboard')
+      }
     } catch (err: any) {
       let text = (err && err.message) ? err.message : "Login failed. Please try again."
       

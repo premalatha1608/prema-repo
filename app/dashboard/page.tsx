@@ -131,20 +131,35 @@ export default function DashboardPage() {
       })
       
       if (!response.ok) {
-        router.push('/')
+        // Use window.location for reliable redirect in production
+        if (typeof window !== 'undefined') {
+          window.location.replace('/')
+        } else {
+          router.push('/')
+        }
         return
       }
       
       const data = await response.json()
       if (!data || !data.message || data.message === "Guest") {
-        router.push('/')
+        // Use window.location for reliable redirect in production
+        if (typeof window !== 'undefined') {
+          window.location.replace('/')
+        } else {
+          router.push('/')
+        }
       } else {
         setUser(data.message)
         await loadData(data.message)
         setLoading(false)
       }
     } catch (error) {
-      router.push('/')
+      // Use window.location for reliable redirect in production
+      if (typeof window !== 'undefined') {
+        window.location.replace('/')
+      } else {
+        router.push('/')
+      }
     }
   }
 
@@ -183,10 +198,10 @@ export default function DashboardPage() {
     ])
 
     const [raised, assigned, self, reporting] = await Promise.all([
-      raisedRes.ok ? raisedRes.json() : { tickets: [] },
-      assignedRes.ok ? assignedRes.json() : { tickets: [] },
-      selfRes.ok ? selfRes.json() : { tickets: [] },
-      reportingRes.ok ? reportingRes.json() : { tickets: [] }
+      raisedRes.ok ? raisedRes.json().catch(() => ({ data: [] })) : { data: [] },
+      assignedRes.ok ? assignedRes.json().catch(() => ({ data: [] })) : { data: [] },
+      selfRes.ok ? selfRes.json().catch(() => ({ data: [] })) : { data: [] },
+      reportingRes.ok ? reportingRes.json().catch(() => ({ data: [] })) : { data: [] }
     ])
 
     // Ensure we have arrays - handle both { tickets: [...] } and direct array responses

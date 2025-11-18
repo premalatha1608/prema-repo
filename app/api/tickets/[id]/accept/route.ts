@@ -35,6 +35,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     })
 
     if (!getResponse.ok) {
+      // Handle 401 Unauthorized
+      if (getResponse.status === 401) {
+        console.warn(`[Accept Ticket API] Unauthorized (401) for ticket ${params.id}`)
+        return NextResponse.json({ error: 'Unauthorized - please login again' }, { status: 401 })
+      }
       throw new Error(`Failed to fetch ticket: ${getResponse.status}`)
     }
 
@@ -87,6 +92,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     })
 
     if (!updateResponse.ok) {
+      // Handle 401 Unauthorized
+      if (updateResponse.status === 401) {
+        console.warn(`[Accept Ticket API] Unauthorized (401) when updating ticket ${params.id}`)
+        return NextResponse.json({ error: 'Unauthorized - please login again' }, { status: 401 })
+      }
       let errorText = `Frappe API error: ${updateResponse.status}`
       try {
         const errorData = await updateResponse.json()

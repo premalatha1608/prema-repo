@@ -57,6 +57,9 @@ export async function GET(request: NextRequest) {
     // Get all cookies from the request and prefer our persisted Frappe SID
     const cookiesHeader = request.headers.get('cookie') || ''
     const frappeSid = request.cookies.get('frappe_sid')?.value
+    
+    // Prefer frappe_sid if available, otherwise use all cookies from header
+    // This ensures we use the persisted session ID in production
     const forwardCookie = frappeSid ? `sid=${frappeSid}` : cookiesHeader
     
     console.log(`[Tickets API] Fetching from Frappe: Type=${type}, User=${user}, UsingSID=${!!frappeSid}`)
@@ -73,6 +76,13 @@ export async function GET(request: NextRequest) {
     if (!response.ok) {
       const errorText = await response.text()
       console.error(`[Tickets API] Frappe API error ${response.status}:`, errorText.substring(0, 200))
+      
+      // Handle 401 Unauthorized - return empty data instead of error
+      if (response.status === 401) {
+        console.warn('[Tickets API] Unauthorized (401) - returning empty tickets array')
+        return NextResponse.json({ success: true, data: [] })
+      }
+      
       throw new Error(`Frappe API error: ${response.status} - ${errorText.substring(0, 100)}`)
     }
 

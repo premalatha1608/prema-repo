@@ -19,21 +19,40 @@ export default function WelcomePage() {
       })
       
       if (!response.ok) {
-        router.push('/')
+        // Use window.location for reliable redirect in production
+        if (typeof window !== 'undefined') {
+          window.location.replace('/')
+        } else {
+          router.push('/')
+        }
         return
       }
       
       const data = await response.json()
       if (!data || !data.message || data.message === "Guest") {
-        router.push('/')
+        // Use window.location for reliable redirect in production
+        if (typeof window !== 'undefined') {
+          window.location.replace('/')
+        } else {
+          router.push('/')
+        }
       } else {
         setUser(data)
         setLoading(false)
-        // Redirect to dashboard after loading
-        router.push('/dashboard')
+        // Redirect to dashboard after loading - use window.location for reliability
+        if (typeof window !== 'undefined') {
+          window.location.replace('/dashboard')
+        } else {
+          router.push('/dashboard')
+        }
       }
     } catch (error) {
-      router.push('/')
+      // Use window.location for reliable redirect in production
+      if (typeof window !== 'undefined') {
+        window.location.replace('/')
+      } else {
+        router.push('/')
+      }
     }
   }
 
@@ -44,20 +63,29 @@ export default function WelcomePage() {
         credentials: "include"
       })
       
-      if (response.ok) {
-        // Clear any local storage
+      // Clear any local storage
+      try {
         localStorage.removeItem("zeff_remember")
-        // Redirect to login page
-        router.push('/')
+      } catch (_) {}
+      
+      // Always redirect to login page - use window.location for reliability
+      if (typeof window !== 'undefined') {
+        window.location.replace('/')
       } else {
-        console.error("Logout failed")
-        // Still redirect to login page even if logout API fails
         router.push('/')
+      }
+      
+      if (!response.ok) {
+        console.error("Logout failed")
       }
     } catch (error) {
       console.error("Logout error:", error)
-      // Still redirect to login page
-      router.push('/')
+      // Still redirect to login page - use window.location for reliability
+      if (typeof window !== 'undefined') {
+        window.location.replace('/')
+      } else {
+        router.push('/')
+      }
     }
   }
 

@@ -177,13 +177,22 @@ export default function DashboardPage() {
 
   const loadTeams = async () => {
     try {
+      console.log('[Dashboard] Fetching team members...')
       const response = await fetch('/api/teams', { credentials: 'include' })
+      
       if (response.ok) {
         const data = await response.json()
-        setTeamMembers(Array.isArray(data.members) ? data.members : [])
+        const members = Array.isArray(data.members) ? data.members : []
+        console.log(`[Dashboard] Loaded ${members.length} team members:`, members)
+        setTeamMembers(members)
+      } else {
+        const errorData = await response.json().catch(() => ({}))
+        console.error('[Dashboard] Failed to load teams:', response.status, errorData)
+        setTeamMembers([])
       }
     } catch (error) {
-      console.error('Error loading teams:', error)
+      console.error('[Dashboard] Error loading teams:', error)
+      setTeamMembers([])
     }
   }
 

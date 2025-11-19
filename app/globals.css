@@ -532,11 +532,37 @@ body {
   line-height: 1.2;
 }
 
+.zeff-nav-title-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  line-height: 1;
+}
+
 .zeff-nav-title {
   font-size: 24px;
   font-weight: 700;
-  color: var(--zeff-text);
+  background: linear-gradient(135deg, #6aa6ff, #7ad1ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.5px;
   margin: 0;
+  padding: 0;
+  line-height: 1.2;
+}
+
+.zeff-nav-subtitle {
+  font-size: 12px;
+  color: var(--zeff-muted);
+  font-weight: 400;
+  letter-spacing: 0.5px;
+  text-transform: lowercase;
+  margin: 0;
+  padding: 0;
+  line-height: 1.2;
+  margin-top: -2px;
 }
 
 .zeff-signout-btn {
@@ -607,6 +633,14 @@ body {
   }
   
   .zeff-brand-tagline {
+    font-size: 11px;
+  }
+  
+  .zeff-nav-title {
+    font-size: 20px;
+  }
+  
+  .zeff-nav-subtitle {
     font-size: 11px;
   }
   

@@ -199,11 +199,21 @@ export default function DashboardPage() {
   const loadTickets = async (currentUser: string) => {
   try {
     console.log('[Dashboard] Loading tickets for user:', currentUser)
+    // Add cache-busting timestamp to ensure fresh data
+    const cacheBuster = `&_t=${Date.now()}`
+    const fetchOptions = { 
+      credentials: 'include' as RequestCredentials,
+      cache: 'no-store' as RequestCache,
+      headers: {
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
+      }
+    }
     const [raisedRes, assignedRes, selfRes, reportingRes] = await Promise.all([
-      fetch(`/api/tickets?type=raised&user=${encodeURIComponent(currentUser)}`, { credentials: 'include' }),
-      fetch(`/api/tickets?type=assigned&user=${encodeURIComponent(currentUser)}`, { credentials: 'include' }),
-      fetch(`/api/tickets?type=self&user=${encodeURIComponent(currentUser)}`, { credentials: 'include' }),
-      fetch(`/api/tickets?type=reporting_manager&user=${encodeURIComponent(currentUser)}`, { credentials: 'include' })
+      fetch(`/api/tickets?type=raised&user=${encodeURIComponent(currentUser)}${cacheBuster}`, fetchOptions),
+      fetch(`/api/tickets?type=assigned&user=${encodeURIComponent(currentUser)}${cacheBuster}`, fetchOptions),
+      fetch(`/api/tickets?type=self&user=${encodeURIComponent(currentUser)}${cacheBuster}`, fetchOptions),
+      fetch(`/api/tickets?type=reporting_manager&user=${encodeURIComponent(currentUser)}${cacheBuster}`, fetchOptions)
     ])
 
     const [raised, assigned, self, reporting] = await Promise.all([
@@ -570,12 +580,24 @@ export default function DashboardPage() {
         }
         
         // Refresh tickets immediately to get the actual ticket from the server
-        // Add a small delay to ensure the ticket is saved on the backend
-        setTimeout(() => {
-          loadTickets(user).catch((err) => {
-            console.error('Error reloading tickets after submission:', err)
-          })
-        }, 500)
+        // Retry mechanism to ensure ticket appears even if backend takes time
+        const refreshTickets = async (retries = 3, delay = 500) => {
+          for (let i = 0; i < retries; i++) {
+            await new Promise(resolve => setTimeout(resolve, delay))
+            try {
+              await loadTickets(user)
+              // If load succeeds, check if we got the new ticket (optional validation)
+              break
+            } catch (err) {
+              console.error(`Error reloading tickets after submission (attempt ${i + 1}/${retries}):`, err)
+              if (i === retries - 1) {
+                // Last attempt failed, but don't show error to user
+                console.error('Failed to reload tickets after all retries')
+              }
+            }
+          }
+        }
+        refreshTickets()
       } else {
         throw new Error('Failed to submit request')
       }

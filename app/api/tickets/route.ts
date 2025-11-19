@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const DOCTYPE = "Request Tickets"
 
+// Disable caching for this route to ensure fresh data
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // GET /api/tickets - Fetch tickets based on type and user
 export async function GET(request: NextRequest) {
   // Make user and type available to the catch block to avoid ReferenceError
@@ -157,7 +161,13 @@ export async function GET(request: NextRequest) {
         
         console.log(`[Tickets API] Returning ${uniqueTickets.length} total tickets for reporting manager ${user} (${tickets1.length} from reporting_manager_user, ${tickets2.length} from reportees)`)
         
-        return NextResponse.json({ tickets: uniqueTickets })
+        return NextResponse.json({ tickets: uniqueTickets }, {
+          headers: {
+            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          }
+        })
       } catch (reportingManagerError) {
         console.error('[Tickets API] Error in reporting manager ticket fetch, falling back to standard filter:', reportingManagerError)
         // Fall through to standard handling
@@ -214,7 +224,13 @@ export async function GET(request: NextRequest) {
     
     // Return actual data even if empty - don't use mock data here
     // Only use mock data in catch block for actual errors
-    return NextResponse.json({ tickets: ticketsArray })
+    return NextResponse.json({ tickets: ticketsArray }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    })
 
   } catch (error) {
     console.error('Error fetching tickets:', error)
@@ -254,7 +270,13 @@ export async function GET(request: NextRequest) {
       reportingManager: [mockTicket],
       reporting_manager: [mockTicket]
     }
-    return NextResponse.json({ tickets: lists[fallbackType] || [] })
+    return NextResponse.json({ tickets: lists[fallbackType] || [] }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    })
   }
 }
 

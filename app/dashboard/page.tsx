@@ -266,8 +266,8 @@ export default function DashboardPage() {
       reporting: reportingTickets.length
     })
 
-    // Separate accepted tickets - include reporting manager tickets in allTickets
-    // so accepted reporting manager tickets can appear in archived tab
+    // Separate accepted tickets - include reportee tickets in allTickets
+    // so accepted reportee tickets can appear in archived tab
     const allTickets = [
       ...raisedTickets,
       ...assignedTickets,
@@ -341,7 +341,7 @@ export default function DashboardPage() {
     const nextSelf = sortByCreationDate(selfTickets.filter((t: Ticket) => t.status !== "Accepted"))
     const nextArchived = sortByAcceptanceDate(archived)
     
-    // Show ALL reportee tickets (non-accepted) in Reporting Manager tab
+    // Show ALL reportee tickets (non-accepted) in Reportees tab
     // The API filters by reporting_manager_user, so all tickets from reportees are included
     const nextReporting = sortByCreationDate(
       reportingTickets.filter((t: Ticket) => {
@@ -350,8 +350,8 @@ export default function DashboardPage() {
       })
     )
     
-    // Debug: Log reporting manager tickets for verification
-    console.log('[Dashboard] Reporting Manager tickets:', {
+    // Debug: Log reportee tickets for verification
+    console.log('[Dashboard] Reportees tickets:', {
       total: reportingTickets.length,
       nonAccepted: nextReporting.length,
       accepted: reportingTickets.filter((t: Ticket) => (t.status || '').trim() === "Accepted").length
@@ -1154,7 +1154,7 @@ export default function DashboardPage() {
             className={`tab ${activeTab === 'reporting_manager' ? 'active' : ''}`}
             onClick={() => setActiveTab('reporting_manager')}
           >
-            Reporting Manager
+            Reportees
           </button>
 
         </div>
@@ -1233,7 +1233,7 @@ export default function DashboardPage() {
           )}
 
           {activeTab === 'reporting_manager' && (
-            <div className="table-container cols-8-reporting">
+            <div className="table-container cols-9-reporting">
               <div className="table-header">
                 <div>Issue / Request</div>
                 <div>Deadline Status</div>
@@ -1243,10 +1243,11 @@ export default function DashboardPage() {
                 <div>Assigned To</div>
                 <div>Status</div>
                 <div>Actions</div>
+                <div>Attachment</div>
               </div>
               {tickets.reportingManager.length === 0 ? (
                 <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>
-                  No tickets where you are reporting manager.
+                  No tickets from your reportees.
                 </div>
               ) : (
                 tickets.reportingManager.map(ticket => (
@@ -1520,7 +1521,10 @@ function TicketRow({
             }}
             title={ticket.link ? 'View link' : 'Try to load link'}
           >
-            View Link
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+            </svg>
             </button>
             )}
             {hasAttachment && (
@@ -1576,7 +1580,11 @@ function TicketRow({
             }}
             title={ticket.attachment ? 'View attachment' : 'Try to load attachment'}
             >
-            View Image
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+              <circle cx="12" cy="12" r="3" fill="currentColor"></circle>
+              <circle cx="11" cy="11" r="1" fill="white"></circle>
+            </svg>
             </button>
             )}
         </div>

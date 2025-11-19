@@ -499,6 +499,11 @@ input[type="file"].file-input-custom::file-selector-button {
   grid-template-columns: 1.5fr 1fr 0.8fr 1.5fr 1fr 1fr 1fr minmax(140px, 1fr);
 }
 
+/* 9-column layout for Reportees tab with Raised By, Assigned To, and Attachment */
+.cols-9-reporting .table-header {
+  grid-template-columns: 1.5fr 1fr 0.8fr 1.5fr 1fr 1fr 1fr minmax(140px, 1fr) 140px;
+}
+
 /* 6-column layout for tabs without extra user column */
 .cols-6 .table-header {
   grid-template-columns: 1.5fr 1fr 0.8fr 1.5fr 1fr minmax(140px, 1fr);
@@ -554,6 +559,11 @@ input[type="file"].file-input-custom::file-selector-button {
 /* 8-column layout for rows in Reporting Manager tab (without attachment column) */
 .cols-8-reporting .row {
   grid-template-columns: 1.5fr 1fr 0.8fr 1.5fr 1fr 1fr 1fr minmax(140px, 1fr);
+}
+
+/* 9-column layout for rows in Reportees tab with Raised By, Assigned To, and Attachment */
+.cols-9-reporting .row {
+  grid-template-columns: 1.5fr 1fr 0.8fr 1.5fr 1fr 1fr 1fr minmax(140px, 1fr) 140px;
 }
 
 /* 5-column layout for rows under archived tab without notes */
@@ -698,14 +708,17 @@ input[type="file"].file-input-custom::file-selector-button {
   gap: 8px;
 }
 
-/* Make attachment buttons smaller */
+/* Make attachment buttons smaller - icon-only buttons */
 .attachment-actions .btn {
-  padding: 8px 16px; /* match .actions buttons (Update) */
-  font-size: 12px;   /* match .actions buttons (Update) */
-  width: 100px;      /* make attachment buttons narrower */
+  padding: 8px; /* smaller padding for icon-only buttons */
+  font-size: 12px;
+  width: 40px;  /* square icon buttons */
+  height: 40px;
   align-self: center;
-  white-space: nowrap; /* keep text on a single line */
-  justify-content: center; /* center-align text within fixed width */
+  display: flex;
+  align-items: center;
+  justify-content: center; /* center-align icon */
+  min-width: 40px;
 }
 
 /* Make Update and Accept buttons smaller only within Actions area */

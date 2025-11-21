@@ -18,6 +18,16 @@ export async function GET(request: NextRequest) {
     const user = searchParams.get('user')
     requestUser = user
 
+    // ===== DIAGNOSTIC LOGGING =====
+    console.log('\n========== TICKETS API REQUEST ==========')
+    console.log('[DIAG] Full request URL:', request.url)
+    console.log('[DIAG] Type from query:', type)
+    console.log('[DIAG] User from query:', user)
+    console.log('[DIAG] User type:', typeof user)
+    console.log('[DIAG] User length:', user?.length)
+    console.log('[DIAG] User trimmed:', user?.trim())
+    console.log('========================================\n')
+
     if (!user) {
       return NextResponse.json({ error: 'User parameter required' }, { status: 400 })
     }
@@ -34,14 +44,6 @@ export async function GET(request: NextRequest) {
         break
       case 'self':
         filters = [["raised_by", "=", user], ["assigned_to_user", "=", user]]
-        break
-      case 'reportingManager':
-      case 'reporting_manager':
-        // For reporting manager, we'll fetch tickets in two ways:
-        // 1. Tickets where reporting_manager_user = user (existing logic)
-        // 2. Tickets raised by reportees (users where reporting_manager = user)
-        // We'll handle this after the switch statement to combine results
-        filters = [["reporting_manager_user", "=", user]]
         break
       default:
         return NextResponse.json({ error: 'Invalid type parameter' }, { status: 400 })
@@ -60,125 +62,11 @@ export async function GET(request: NextRequest) {
     const frappeSid = request.cookies.get('frappe_sid')?.value
     const forwardCookie = frappeSid ? `sid=${frappeSid}` : cookiesHeader
     
-    // Special handling for reporting_manager: fetch tickets from reportees too
-    if (type === 'reportingManager' || type === 'reporting_manager') {
-      try {
-        // First, get all reportees (users where this user is their reporting manager)
-        const reporteesUrl = `https://zeff.valuepitch.ai/api/resource/User?fields=["name"]&filters=${encodeURIComponent(JSON.stringify([["reporting_manager", "=", user]]))}&limit=0`
-        
-        const reporteesResponse = await fetch(reporteesUrl, {
-          headers: {
-            'Cookie': forwardCookie,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          cache: 'no-store'
-        })
-        
-        let reporteeEmails: string[] = []
-        if (reporteesResponse.ok) {
-          const reporteesData = await reporteesResponse.json()
-          const reportees = Array.isArray(reporteesData?.data) ? reporteesData.data : []
-          reporteeEmails = reportees.map((r: any) => r.name).filter((email: string) => email && email.trim())
-          console.log(`[Tickets API] Found ${reporteeEmails.length} reportees for reporting manager ${user}:`, reporteeEmails)
-        } else {
-          console.warn(`[Tickets API] Could not fetch reportees for ${user}, status: ${reporteesResponse.status}`)
-        }
-        
-        // Fetch tickets in two batches:
-        // 1. Tickets where reporting_manager_user = user
-        const flt1 = JSON.stringify(filters)
-        const frappeUrl1 = `https://zeff.valuepitch.ai/api/resource/${encodeURIComponent(DOCTYPE)}?fields=${encodeURIComponent(fields)}&filters=${encodeURIComponent(flt1)}&limit=0`
-        
-        const response1 = await fetch(frappeUrl1, {
-          headers: {
-            'Cookie': forwardCookie,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          cache: 'no-store'
-        })
-        
-        let tickets1: any[] = []
-        if (response1.ok) {
-          const data1 = await response1.json()
-          tickets1 = Array.isArray(data1?.data) ? data1.data : []
-          console.log(`[Tickets API] Found ${tickets1.length} tickets with reporting_manager_user = ${user}`)
-        }
-        
-        // 2. Tickets raised by reportees (includes all tickets: assigned to others, self-assigned, etc.)
-        let tickets2: any[] = []
-        if (reporteeEmails.length > 0) {
-          // Fetch tickets for each reportee - this includes:
-          // - Tickets assigned to others (raised_by = reportee, assigned_to_user != reportee)
-          // - Self-assigned tickets (raised_by = reportee, assigned_to_user = reportee)
-          // - All other tickets raised by the reportee
-          const reporteeTicketsPromises = reporteeEmails.map(async (reporteeEmail) => {
-            const reporteeFilter = JSON.stringify([["raised_by", "=", reporteeEmail]])
-            const reporteeUrl = `https://zeff.valuepitch.ai/api/resource/${encodeURIComponent(DOCTYPE)}?fields=${encodeURIComponent(fields)}&filters=${encodeURIComponent(reporteeFilter)}&limit=0`
-            
-            try {
-              const reporteeResponse = await fetch(reporteeUrl, {
-                headers: {
-                  'Cookie': forwardCookie,
-                  'Content-Type': 'application/json',
-                  'Accept': 'application/json'
-                },
-                cache: 'no-store'
-              })
-              
-              if (reporteeResponse.ok) {
-                const reporteeData = await reporteeResponse.json()
-                const tickets = Array.isArray(reporteeData?.data) ? reporteeData.data : []
-                // Log self-assigned tickets for this reportee
-                const selfAssigned = tickets.filter((t: any) => t.raised_by === reporteeEmail && t.assigned_to_user === reporteeEmail)
-                if (selfAssigned.length > 0) {
-                  console.log(`[Tickets API] Found ${selfAssigned.length} self-assigned tickets for reportee ${reporteeEmail}`)
-                }
-                return tickets
-              }
-            } catch (err) {
-              console.error(`[Tickets API] Error fetching tickets for reportee ${reporteeEmail}:`, err)
-            }
-            return []
-          })
-          
-          const reporteeTicketsArrays = await Promise.all(reporteeTicketsPromises)
-          tickets2 = reporteeTicketsArrays.flat()
-          
-          // Count self-assigned tickets from reportees
-          const selfAssignedFromReportees = tickets2.filter((t: any) => 
-            reporteeEmails.includes(t.raised_by) && t.raised_by === t.assigned_to_user
-          )
-          console.log(`[Tickets API] Found ${tickets2.length} tickets raised by reportees (including ${selfAssignedFromReportees.length} self-assigned)`)
-        }
-        
-        // Combine and deduplicate tickets by name
-        const allTickets = [...tickets1, ...tickets2]
-        const uniqueTickets = Array.from(
-          new Map(allTickets.map((ticket: any) => [ticket.name, ticket])).values()
-        )
-        
-        console.log(`[Tickets API] Returning ${uniqueTickets.length} total tickets for reporting manager ${user} (${tickets1.length} from reporting_manager_user, ${tickets2.length} from reportees)`)
-        
-        return NextResponse.json({ tickets: uniqueTickets }, {
-          headers: {
-            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
-          }
-        })
-      } catch (reportingManagerError) {
-        console.error('[Tickets API] Error in reporting manager ticket fetch, falling back to standard filter:', reportingManagerError)
-        // Fall through to standard handling
-      }
-    }
-    
-    // Standard handling for other types
     const flt = JSON.stringify(filters)
     const frappeUrl = `https://zeff.valuepitch.ai/api/resource/${encodeURIComponent(DOCTYPE)}?fields=${encodeURIComponent(fields)}&filters=${encodeURIComponent(flt)}&limit=0`
     
     console.log(`[Tickets API] Fetching from Frappe: Type=${type}, User=${user}, UsingSID=${!!frappeSid}`)
+    
     
     const response = await fetch(frappeUrl, {
       headers: {
@@ -241,7 +129,7 @@ export async function GET(request: NextRequest) {
     try {
       const urlParams = new URL(request.url).searchParams
       const urlType = urlParams.get('type')
-      if (urlType && (urlType === 'raised' || urlType === 'assigned' || urlType === 'self' || urlType === 'reportingManager' || urlType === 'reporting_manager')) {
+      if (urlType && (urlType === 'raised' || urlType === 'assigned' || urlType === 'self')) {
         fallbackType = urlType
       }
     } catch (urlError) {
@@ -266,9 +154,7 @@ export async function GET(request: NextRequest) {
     const lists: Record<string, any[]> = {
       raised: [mockTicket],
       assigned: [mockTicket],
-      self: [mockTicket],
-      reportingManager: [mockTicket],
-      reporting_manager: [mockTicket]
+      self: [mockTicket]
     }
     return NextResponse.json({ tickets: lists[fallbackType] || [] }, {
       headers: {

@@ -19,6 +19,7 @@ interface Ticket {
   status_update_latest_time: string
   link?: string
   attachment?: string
+  reporting_manager_user?: string
   action_status?: Array<{
     status: string
     rating?: number
@@ -196,9 +197,51 @@ export default function DashboardPage() {
     }
   }
 
+  const loadReporteeTickets = async (currentUser: string): Promise<Ticket[]> => {
+    try {
+      console.log('[Dashboard] Loading reportee tickets for user:', currentUser)
+      
+      const response = await fetch('/api/reportee', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        cache: 'no-store' as RequestCache,
+        body: JSON.stringify({}) // Email will be retrieved from session in API route
+      })
+      
+      if (!response.ok) {
+        console.error('[Dashboard] Failed to fetch reportee tickets:', response.status)
+        return []
+      }
+      
+      const data = await response.json()
+      
+      // Handle both array response and wrapped response
+      let reporteeTickets: Ticket[] = []
+      if (Array.isArray(data.tickets)) {
+        reporteeTickets = data.tickets
+      } else if (Array.isArray(data)) {
+        reporteeTickets = data
+      } else if (Array.isArray(data.data)) {
+        reporteeTickets = data.data
+      }
+      
+      console.log('[Dashboard] Loaded', reporteeTickets.length, 'reportee tickets')
+      return reporteeTickets
+    } catch (error) {
+      console.error('[Dashboard] Error loading reportee tickets:', error)
+      return []
+    }
+  }
+
   const loadTickets = async (currentUser: string) => {
   try {
+    console.log('\n========== DASHBOARD LOADING TICKETS ==========')
     console.log('[Dashboard] Loading tickets for user:', currentUser)
+    console.log('[Dashboard] User type:', typeof currentUser)
+    console.log('[Dashboard] User length:', currentUser?.length)
     // Add cache-busting timestamp to ensure fresh data
     const cacheBuster = `&_t=${Date.now()}`
     const fetchOptions = { 
@@ -209,18 +252,18 @@ export default function DashboardPage() {
         'Pragma': 'no-cache'
       }
     }
-    const [raisedRes, assignedRes, selfRes, reportingRes] = await Promise.all([
+    
+    const [raisedRes, assignedRes, selfRes, reporteeTickets] = await Promise.all([
       fetch(`/api/tickets?type=raised&user=${encodeURIComponent(currentUser)}${cacheBuster}`, fetchOptions),
       fetch(`/api/tickets?type=assigned&user=${encodeURIComponent(currentUser)}${cacheBuster}`, fetchOptions),
       fetch(`/api/tickets?type=self&user=${encodeURIComponent(currentUser)}${cacheBuster}`, fetchOptions),
-      fetch(`/api/tickets?type=reporting_manager&user=${encodeURIComponent(currentUser)}${cacheBuster}`, fetchOptions)
+      loadReporteeTickets(currentUser)
     ])
 
-    const [raised, assigned, self, reporting] = await Promise.all([
+    const [raised, assigned, self] = await Promise.all([
       raisedRes.ok ? raisedRes.json().catch(() => ({ data: [] })) : { data: [] },
       assignedRes.ok ? assignedRes.json().catch(() => ({ data: [] })) : { data: [] },
-      selfRes.ok ? selfRes.json().catch(() => ({ data: [] })) : { data: [] },
-      reportingRes.ok ? reportingRes.json().catch(() => ({ data: [] })) : { data: [] }
+      selfRes.ok ? selfRes.json().catch(() => ({ data: [] })) : { data: [] }
     ])
 
     // Ensure we have arrays - handle both { tickets: [...] } and direct array responses
@@ -258,31 +301,19 @@ export default function DashboardPage() {
       selfTickets = self.data.tickets
     }
     
-    let reportingTickets: Ticket[] = []
-    if (Array.isArray(reporting.tickets)) {
-      reportingTickets = reporting.tickets
-    } else if (Array.isArray(reporting)) {
-      reportingTickets = reporting
-    } else if (reporting?.data && Array.isArray(reporting.data)) {
-      reportingTickets = reporting.data
-    } else if (reporting?.data?.tickets && Array.isArray(reporting.data.tickets)) {
-      reportingTickets = reporting.data.tickets
-    }
-    
     console.log('[Dashboard] Tickets loaded:', {
       raised: raisedTickets.length,
       assigned: assignedTickets.length,
       self: selfTickets.length,
-      reporting: reportingTickets.length
+      reportee: reporteeTickets.length
     })
 
-    // Separate accepted tickets - include reportee tickets in allTickets
-    // so accepted reportee tickets can appear in archived tab
+    // Separate accepted tickets
     const allTickets = [
       ...raisedTickets,
       ...assignedTickets,
       ...selfTickets,
-      ...reportingTickets
+      ...reporteeTickets
     ]
     const archivedShallow = allTickets.filter(t => t.status === "Accepted")
 
@@ -351,21 +382,8 @@ export default function DashboardPage() {
     const nextSelf = sortByCreationDate(selfTickets.filter((t: Ticket) => t.status !== "Accepted"))
     const nextArchived = sortByAcceptanceDate(archived)
     
-    // Show ALL reportee tickets (non-accepted) in Reportees tab
-    // The API filters by reporting_manager_user, so all tickets from reportees are included
-    const nextReporting = sortByCreationDate(
-      reportingTickets.filter((t: Ticket) => {
-        const status = (t.status || '').trim()
-        return status !== "Accepted"
-      })
-    )
-    
-    // Debug: Log reportee tickets for verification
-    console.log('[Dashboard] Reportees tickets:', {
-      total: reportingTickets.length,
-      nonAccepted: nextReporting.length,
-      accepted: reportingTickets.filter((t: Ticket) => (t.status || '').trim() === "Accepted").length
-    })
+    // Reportee tickets: Show all tickets from webhook (no status filtering)
+    const nextReporting = sortByCreationDate(reporteeTickets)
 
     // Always update with real data from API
     console.log('[Dashboard] Setting tickets:', {
@@ -1178,13 +1196,12 @@ export default function DashboardPage() {
           >
             Reportees
           </button>
-
         </div>
 
         {/* Ticket Lists */}
         <div className="list">
           {activeTab === 'raised' && (
-            <div className="table-container cols-7">
+            <div className="table-container cols-6-raised">
               <div className="table-header">
                 <div>Issue / Request</div>
                 <div>Deadline Status</div>
@@ -1216,7 +1233,7 @@ export default function DashboardPage() {
           
           
           {activeTab === 'assigned' && (
-            <div className="table-container cols-8">
+            <div className="table-container cols-7-assigned">
               <div className="table-header">
                 <div>Issue / Request</div>
                 <div>Deadline Status</div>
@@ -1225,7 +1242,6 @@ export default function DashboardPage() {
                 <div>Assigned By</div>
                 <div>Status</div>
                 <div>Actions</div>
-                <div>Attachment</div>
               </div>
               {tickets.assigned.length === 0 ? (
                 <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>
@@ -1255,7 +1271,7 @@ export default function DashboardPage() {
           )}
 
           {activeTab === 'reporting_manager' && (
-            <div className="table-container cols-9-reporting">
+            <div className="table-container cols-7-reporting">
               <div className="table-header">
                 <div>Issue / Request</div>
                 <div>Deadline Status</div>
@@ -1264,8 +1280,6 @@ export default function DashboardPage() {
                 <div>Raised By</div>
                 <div>Assigned To</div>
                 <div>Status</div>
-                <div>Actions</div>
-                <div>Attachment</div>
               </div>
               {tickets.reportingManager.length === 0 ? (
                 <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>
@@ -1293,8 +1307,9 @@ export default function DashboardPage() {
               )}
             </div>
           )}
+
           {activeTab === 'self' && (
-            <div className="table-container cols-7">
+            <div className="table-container cols-6-self">
               <div className="table-header">
                 <div>Issue / Request</div>
                 <div>Deadline Status</div>
@@ -1302,7 +1317,6 @@ export default function DashboardPage() {
                 <div>Business Impact</div>
                 <div>Status</div>
                 <div>Actions</div>
-                <div>Attachment</div>
               </div>
               {tickets.selfAssigned.length === 0 ? (
                 <div style={{ padding: '20px', textAlign: 'center', color: '#94a3b8' }}>
@@ -1449,11 +1463,129 @@ function TicketRow({
     setShowAccept(false)
   }
 
+  // Helper function to handle link view
+  const handleViewLink = async () => {
+    if (onViewLink) {
+      if (ticket.link && ticket.link.trim()) {
+        onViewLink(ticket.link.trim())
+        return
+      }
+      try {
+        const res = await fetch(`/api/tickets/${encodeURIComponent(ticket.name)}`, { credentials: 'include' })
+        if (res.ok) {
+          const data = await res.json()
+          if (!data?.ticket) {
+            alert('Unable to load ticket details.')
+            return
+          }
+          const fetchedTicketObj = data.ticket.data || data.ticket
+          const link = fetchedTicketObj?.link || data.ticket.link || null
+          if (link && typeof link === 'string' && link.trim()) {
+            onViewLink(link.trim())
+            return
+          }
+          // Fallback: Try extracting a URL from notes
+          const candidateFromNotes = (fetchedTicketObj?.notes || '').match(/https?:\/\/[^\s)]+/i)
+          if (candidateFromNotes && candidateFromNotes[0]) {
+            onViewLink(candidateFromNotes[0])
+            return
+          }
+          // Fallback: Try action_status notes (newest first)
+          const actions = Array.isArray(fetchedTicketObj?.action_status) ? fetchedTicketObj.action_status : []
+          const sortedDesc = [...actions].sort((a: any, b: any) => new Date(b.status_update_latest_time || 0).getTime() - new Date(a.status_update_latest_time || 0).getTime())
+          for (const act of sortedDesc) {
+            const cand = (act?.notes || '').match(/https?:\/\/[^\s)]+/i)
+            if (cand && cand[0]) {
+              onViewLink(cand[0])
+              return
+            }
+          }
+          alert('No link available for this ticket.')
+        } else {
+          const errorText = await res.text().catch(() => 'Unknown error')
+          console.error('Error fetching ticket:', res.status, errorText)
+          alert('Unable to load ticket details to view the link.')
+        }
+      } catch (error) {
+        console.error('Error fetching ticket:', error)
+        alert('Unable to load ticket details to view the link.')
+      }
+    }
+  }
+
+  // Helper function to handle attachment view
+  const handleViewAttachment = async () => {
+    if (onViewAttachment) {
+      if (ticket.attachment && ticket.attachment.trim()) {
+        onViewAttachment(ticket.attachment.trim())
+        return
+      }
+      try {
+        const res = await fetch(`/api/tickets/${encodeURIComponent(ticket.name)}`, { credentials: 'include' })
+        if (res.ok) {
+          const data = await res.json()
+          const fetchedTicketObj = data.ticket.data || data.ticket
+          const attachment = fetchedTicketObj?.attachment || data.ticket.attachment || null
+          if (attachment && typeof attachment === 'string' && attachment.trim()) {
+            onViewAttachment(attachment.trim())
+            return
+          }
+          const filesRes = await fetch(`/api/tickets/${encodeURIComponent(ticket.name)}/attachments`, { credentials: 'include' })
+          if (filesRes.ok) {
+            const filesData = await filesRes.json()
+            const attachments = Array.isArray(filesData?.attachments) ? filesData.attachments : []
+            if (attachments.length > 0 && attachments[0].url) {
+              onViewAttachment(attachments[0].url)
+              return
+            }
+          }
+          alert('No attachment available for this ticket.')
+        }
+      } catch (error) {
+        console.error('Error fetching ticket:', error)
+        alert('Unable to load ticket details to view the attachment.')
+      }
+    }
+  }
+
   return (
     <div className="row" id={`row-${ticket.name}`}>
       <div>
-        <div className="ticket-title">{ticket.what_is_issueidea || "No description"}</div>
-        <div className="ticket-id">#{ticket.name}</div>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+          <div style={{ flex: 1 }}>
+            <div className="ticket-title">{ticket.what_is_issueidea || "No description"}</div>
+            <div className="ticket-id">#{ticket.name}</div>
+          </div>
+          {(hasLink || hasAttachment) && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flexShrink: 0 }}>
+              {hasLink && (
+                <button 
+                  className="btn-icon"
+                  onClick={handleViewLink}
+                  title="View link"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                  </svg>
+                </button>
+              )}
+              {hasAttachment && (
+                <button 
+                  className="btn-icon"
+                  onClick={handleViewAttachment}
+                  title="View attachment"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                    <circle cx="12" cy="12" r="3" fill="currentColor"></circle>
+                    <circle cx="11" cy="11" r="1" fill="white"></circle>
+                  </svg>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
       <div className="cell-content">
         <div className={`deadline-status ${deadlineStatus.class}`}>{deadlineStatus.text}</div>
@@ -1473,142 +1605,14 @@ function TicketRow({
         </>
       )}
       <div className="pill" data-status={status} id={`pill-${ticket.name}`}>{status}</div>
-      <div className="actions" data-context={context}>
-        {showUpdateButton && (
-          <button className="btn primary" onClick={() => setShowUpdate(true)}>Update</button>
-        )}
-        {(showAcceptButton || showAcceptButtonSelf) && (
-          <button className="btn accept" onClick={() => setShowAccept(true)}>Accept</button>
-        )}
-      </div>
-      {(context === 'assigned' || context === 'self' || context === 'reporting_manager') && (hasLink || hasAttachment) && (
-        <div className="attachment-actions" style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'stretch' }}>
-            {hasLink && (
-            <button 
-            className="btn primary"
-            onClick={async () => {
-              if (onViewLink) {
-                // First check if we already have the link in the ticket object
-                if (ticket.link && ticket.link.trim()) {
-                  onViewLink(ticket.link.trim())
-                  return
-                }
-                // If not, fetch the full ticket details to get the link field
-                try {
-                  const res = await fetch(`/api/tickets/${encodeURIComponent(ticket.name)}`, { credentials: 'include' })
-                  if (res.ok) {
-                    const data = await res.json()
-                    if (!data?.ticket) {
-                      alert('Unable to load ticket details.')
-                      return
-                    }
-                    
-                    // Get link from fetched ticket - check multiple possible property paths
-                    const fetchedTicketObj = data.ticket.data || data.ticket
-                    const link = fetchedTicketObj?.link || data.ticket.link || null
-                    
-                    if (link && typeof link === 'string' && link.trim()) {
-                      onViewLink(link.trim())
-                      return
-                    }
-                    
-                    // Fallback: Try extracting a URL from notes
-                    const candidateFromNotes = (fetchedTicketObj?.notes || '').match(/https?:\/\/[^\s)]+/i)
-                    if (candidateFromNotes && candidateFromNotes[0]) {
-                      onViewLink(candidateFromNotes[0])
-                      return
-                    }
-                    // Fallback: Try action_status notes (newest first)
-                    const actions = Array.isArray(fetchedTicketObj?.action_status) ? fetchedTicketObj.action_status : []
-                    const sortedDesc = [...actions].sort((a: any, b: any) => new Date(b.status_update_latest_time || 0).getTime() - new Date(a.status_update_latest_time || 0).getTime())
-                    for (const act of sortedDesc) {
-                      const cand = (act?.notes || '').match(/https?:\/\/[^\s)]+/i)
-                      if (cand && cand[0]) {
-                        onViewLink(cand[0])
-                        return
-                      }
-                    }
-                    
-                    alert('No link available for this ticket.')
-                  } else {
-                    const errorText = await res.text().catch(() => 'Unknown error')
-                    console.error('Error fetching ticket:', res.status, errorText)
-                    alert('Unable to load ticket details to view the link.')
-                  }
-                } catch (error) {
-                  console.error('Error fetching ticket:', error)
-                  alert('Unable to load ticket details to view the link.')
-                }
-              }
-            }}
-            title={ticket.link ? 'View link' : 'Try to load link'}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-            </svg>
-            </button>
-            )}
-            {hasAttachment && (
-            <button 
-            className="btn secondary"
-            onClick={async () => {
-              if (onViewAttachment) {
-                // First check if we already have the attachment in the ticket object
-                if (ticket.attachment && ticket.attachment.trim()) {
-                  onViewAttachment(ticket.attachment.trim())
-                  return
-                }
-                // If not, fetch the full ticket details to get the attachment field
-                try {
-                  const res = await fetch(`/api/tickets/${encodeURIComponent(ticket.name)}`, { credentials: 'include' })
-                  if (res.ok) {
-                    const data = await res.json()
-                    if (!data?.ticket) {
-                      alert('Unable to load ticket details.')
-                      return
-                    }
-                    
-                    // Get attachment from fetched ticket - check multiple possible property paths
-                    const fetchedTicketObj = data.ticket.data || data.ticket
-                    const attachment = fetchedTicketObj?.attachment || data.ticket.attachment || null
-                    if (attachment && typeof attachment === 'string' && attachment.trim()) {
-                      onViewAttachment(attachment.trim())
-                      return
-                    }
-
-                    // Fallback: query Frappe File attachments linked to this ticket
-                    const filesRes = await fetch(`/api/tickets/${encodeURIComponent(ticket.name)}/attachments`, { credentials: 'include' })
-                    if (filesRes.ok) {
-                      const filesData = await filesRes.json()
-                      const attachments = Array.isArray(filesData?.attachments) ? filesData.attachments : []
-                      if (attachments.length > 0 && attachments[0].url) {
-                        onViewAttachment(attachments[0].url)
-                        return
-                      }
-                    }
-
-                    alert('No attachment available for this ticket.')
-                  } else {
-                    const errorText = await res.text().catch(() => 'Unknown error')
-                    console.error('Error fetching ticket:', res.status, errorText)
-                    alert('Unable to load ticket details to view the attachment.')
-                  }
-                } catch (error) {
-                  console.error('Error fetching ticket:', error)
-                  alert('Unable to load ticket details to view the attachment.')
-                }
-              }
-            }}
-            title={ticket.attachment ? 'View attachment' : 'Try to load attachment'}
-            >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-              <circle cx="12" cy="12" r="3" fill="currentColor"></circle>
-              <circle cx="11" cy="11" r="1" fill="white"></circle>
-            </svg>
-            </button>
-            )}
+      {context !== 'reporting_manager' && (
+        <div className="actions" data-context={context}>
+          {showUpdateButton && (
+            <button className="btn primary" onClick={() => setShowUpdate(true)}>Update</button>
+          )}
+          {(showAcceptButton || showAcceptButtonSelf) && (
+            <button className="btn accept" onClick={() => setShowAccept(true)}>Accept</button>
+          )}
         </div>
       )}
       

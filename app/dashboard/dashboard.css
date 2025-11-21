@@ -479,6 +479,21 @@ input[type="file"].file-input-custom::file-selector-button {
 }
 
 
+/* 6-column layout for Raised tab (Issue, Deadline, Severity, Business Impact, Assigned To, Status, Actions) */
+.cols-6-raised .table-header {
+  grid-template-columns: 2.5fr 1fr 0.8fr 1.5fr 1fr 1fr minmax(140px, 1fr);
+}
+
+/* 7-column layout for Assigned tab (Issue, Deadline, Severity, Business Impact, Assigned By, Status, Actions) */
+.cols-7-assigned .table-header {
+  grid-template-columns: 2.5fr 1fr 0.8fr 1.5fr 1fr 1fr minmax(140px, 1fr);
+}
+
+/* 6-column layout for Self tab (Issue, Deadline, Severity, Business Impact, Status, Actions) */
+.cols-6-self .table-header {
+  grid-template-columns: 2.5fr 1fr 0.8fr 1.5fr 1fr minmax(140px, 1fr);
+}
+
 /* 7-column layout for tabs that include an extra user column */
 .cols-7 .table-header {
   grid-template-columns: 1.5fr 1fr 0.8fr 1.5fr 1.5fr 1fr minmax(140px, 1fr);
@@ -494,15 +509,11 @@ input[type="file"].file-input-custom::file-selector-button {
   grid-template-columns: 1.5fr 1fr 0.8fr 1.5fr 1.5fr 1fr minmax(140px, 1fr) 140px;
 }
 
-/* 8-column layout for Reporting Manager tab (without attachment column) */
-.cols-8-reporting .table-header {
-  grid-template-columns: 1.5fr 1fr 0.8fr 1.5fr 1fr 1fr 1fr minmax(140px, 1fr);
+/* 7-column layout for Reportees tab with Raised By, Assigned To (no Actions, no Attachment column) */
+.cols-7-reporting .table-header {
+  grid-template-columns: 2.5fr 1fr 0.8fr 1.5fr 1fr 1fr 1fr;
 }
 
-/* 9-column layout for Reportees tab with Raised By, Assigned To, and Attachment */
-.cols-9-reporting .table-header {
-  grid-template-columns: 1.5fr 1fr 0.8fr 1.5fr 1fr 1fr 1fr minmax(140px, 1fr) 140px;
-}
 
 /* 6-column layout for tabs without extra user column */
 .cols-6 .table-header {
@@ -536,6 +547,21 @@ input[type="file"].file-input-custom::file-selector-button {
   text-align: left;
 }
 
+/* 6-column layout for rows in Raised tab */
+.cols-6-raised .row {
+  grid-template-columns: 2.5fr 1fr 0.8fr 1.5fr 1fr 1fr minmax(140px, 1fr);
+}
+
+/* 7-column layout for rows in Assigned tab */
+.cols-7-assigned .row {
+  grid-template-columns: 2.5fr 1fr 0.8fr 1.5fr 1fr 1fr minmax(140px, 1fr);
+}
+
+/* 6-column layout for rows in Self tab */
+.cols-6-self .row {
+  grid-template-columns: 2.5fr 1fr 0.8fr 1.5fr 1fr minmax(140px, 1fr);
+}
+
 /* 7-column layout for rows under tabs with extra user column */
 .cols-7 .row {
   grid-template-columns: 1.5fr 1fr 0.8fr 1.5fr 1.5fr 1fr minmax(140px, 1fr);
@@ -556,15 +582,11 @@ input[type="file"].file-input-custom::file-selector-button {
   grid-template-columns: 1.5fr 1fr 0.8fr 1.5fr 1.5fr 1fr minmax(140px, 1fr) 140px;
 }
 
-/* 8-column layout for rows in Reporting Manager tab (without attachment column) */
-.cols-8-reporting .row {
-  grid-template-columns: 1.5fr 1fr 0.8fr 1.5fr 1fr 1fr 1fr minmax(140px, 1fr);
+/* 7-column layout for rows in Reportees tab with Raised By, Assigned To (no Actions, no Attachment column) */
+.cols-7-reporting .row {
+  grid-template-columns: 2.5fr 1fr 0.8fr 1.5fr 1fr 1fr 1fr;
 }
 
-/* 9-column layout for rows in Reportees tab with Raised By, Assigned To, and Attachment */
-.cols-9-reporting .row {
-  grid-template-columns: 1.5fr 1fr 0.8fr 1.5fr 1fr 1fr 1fr minmax(140px, 1fr) 140px;
-}
 
 /* 5-column layout for rows under archived tab without notes */
 .cols-5 .row {
@@ -786,6 +808,33 @@ input[type="file"].file-input-custom::file-selector-button {
 .btn.cancel:hover {
   background: rgba(100, 116, 139, 0.3);
   color: #e2e8f0;
+}
+
+/* Small icon buttons for attachments/links in reportee tab */
+.btn-icon {
+  padding: 4px;
+  border: none;
+  border-radius: 4px;
+  background: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.btn-icon:hover {
+  background: rgba(59, 130, 246, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-icon svg {
+  width: 14px;
+  height: 14px;
 }
 
 .btn:disabled,
